@@ -1,41 +1,68 @@
 using System.Collections;
 using UnityEngine;
-using UnityEngine.Pool;
 
 public class EnemyController : MonoBehaviour
 {
     private EnemyData data;
-    private Transform[] waypoints;
+    [SerializeField] private ObjectPoolManager bulletPool;
     private SpriteRenderer spriteRenderer;
-    private int currentWaypoint = 0;
-    private bool ActiveSpriteA = true;
 
-    public void Inicializar(EnemyData enemyData, Transform[] route, SpriteRenderer sr)
+    private bool activeSpriteA = true;
+    [SerializeField] private Sprite[] hitSprites;
+    [SerializeField] private float hitFrameDuration = 0.2f;
+
+    private bool isHit = false;
+
+    private Coroutine shootingCoroutine;
+    private Coroutine spriteCoroutine;
+
+    private Vector3 startPosition;
+
+    private void Awake()
     {
-        data = enemyData;
-        waypoints = route;
-        spriteRenderer = sr;
-        spriteRenderer.sprite = data.spriteA;
-
-        StartCoroutine(MoveToWaypoint());
-        StartCoroutine(Shooting());
+        spriteRenderer = GetComponent<SpriteRenderer>();
     }
 
-    private IEnumerator MoveToWaypoint()
+    private void OnEnable()
     {
-        while (currentWaypoint < waypoints.Length)
+        if (spriteRenderer == null)
+            spriteRenderer = GetComponent<SpriteRenderer>();
+
+        if (shootingCoroutine == null)
+            shootingCoroutine = StartCoroutine(Shooting());
+
+        if (spriteCoroutine == null)
+            spriteCoroutine = StartCoroutine(SpriteAlternating());
+    }
+
+    public void Setup(EnemyData enemyData, ObjectPoolManager bulletPool)
+    {
+        startPosition = transform.position;
+        this.data = enemyData;
+        this.bulletPool = bulletPool;
+        activeSpriteA = true;
+        isHit = false;
+
+        if (spriteRenderer == null)
+            spriteRenderer = GetComponent<SpriteRenderer>();
+
+        if (data != null && data.spriteA != null)
+            spriteRenderer.sprite = data.spriteA;
+    }
+
+    public void ResetPosition()
+    {
+        transform.position = startPosition;
+    }
+
+    private IEnumerator SpriteAlternating()
+    {
+        while (true)
         {
-            Transform target = waypoints[currentWaypoint];
-            while (Vector2.Distance(transform.position, target.position) > 0.05f)
-            {
-                transform.position = Vector2.MoveTowards(transform.position, target.position, data.moveSpeed * Time.deltaTime);
-
+            if (!isHit && spriteRenderer != null)
                 ChangeSprite();
-                yield return new WaitForSeconds(0.2f);
-            }
 
-            yield return new WaitForSeconds(data.waitTime);
-            currentWaypoint++;
+            yield return new WaitForSeconds(1f);
         }
     }
 
@@ -43,18 +70,61 @@ public class EnemyController : MonoBehaviour
     {
         while (true)
         {
-            float delay = Random.Range(data.minDelay, data.maxDelay);
-            yield return new WaitForSeconds(delay);
+            if (gameObject.activeInHierarchy && !isHit && bulletPool != null && data != null)
+            {
+                float delay = Random.Range(data.minDelay, data.maxDelay);
+                yield return new WaitForSeconds(delay);
 
-            GameObject bullet = BulletPoolManager.Instance.ObtenerObjeto(data.bulletPrefab);
-            bullet.transform.position = transform.position;
-            bullet.SetActive(true);
+                GameObject bullet = bulletPool.AskForObject(transform.position + Vector3.down * 0.5f);
+                if (bullet != null)
+                    bullet.SetActive(true);
+            }
+            else
+            {
+                yield return null;
+            }
         }
     }
 
     private void ChangeSprite()
     {
-        ActiveSpriteA = !ActiveSpriteA;
-        spriteRenderer.sprite = ActiveSpriteA ? data.spriteA : data.spriteB;
+        if (data == null || spriteRenderer == null) return;
+
+        activeSpriteA = !activeSpriteA;
+        spriteRenderer.sprite = activeSpriteA ? data.spriteA : data.spriteB;
+    }
+
+    public void PlayHitAnimation()
+    {
+        if (isHit) return;
+        isHit = true;
+        StartCoroutine(HitAnimationCoroutine());
+    }
+
+    private IEnumerator HitAnimationCoroutine()
+    {
+        foreach (var sprite in hitSprites)
+        {
+            if (spriteRenderer != null)
+                spriteRenderer.sprite = sprite;
+
+            yield return new WaitForSeconds(hitFrameDuration);
+        }
+
+        gameObject.SetActive(false);
+        isHit = false;
+    }
+
+    public void MultiplySpeed(float multiplier)
+    {
+        if (data != null)
+            data.moveSpeed *= multiplier;
+    }
+
+    private void OnDisable()
+    {
+        EnemyFormationController formation = GetComponentInParent<EnemyFormationController>();
+        if (formation != null)
+            formation.RemoveEnemy(this);
     }
 }

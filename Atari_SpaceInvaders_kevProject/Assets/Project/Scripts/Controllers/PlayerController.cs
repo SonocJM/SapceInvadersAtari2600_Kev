@@ -2,20 +2,25 @@ using UnityEngine;
 
 public class PlayerController : MonoBehaviour
 {
-    private float moveInput;
-    private Vector3 currentPosition;
+    [Header("Movement")]
     [SerializeField] private float speed = 5f;
-
-    [Header("Limit")]
     [SerializeField] private float minX = -5f;
     [SerializeField] private float maxX = 5f;
 
+    [Header("Shoot")]
+    [SerializeField] private ObjectPoolManager bulletPool;
+    [SerializeField] private Vector3 bulletOffset = new Vector3(0, 0.5f, 0);
+
+    private float moveInput;
+    private Vector3 currentPosition;
+
     void Update()
     {
-        Movement(); 
+        Movement();
+        Shooting();
     }
 
-    public void Movement()
+    private void Movement()
     {
         moveInput = Input.GetAxis("Horizontal");
 
@@ -25,5 +30,19 @@ public class PlayerController : MonoBehaviour
 
         transform.position = currentPosition;
     }
+
+    private void Shooting()
+    {
+        if (Input.GetButtonDown("Fire1"))
+        {
+            if (bulletPool != null)
+            {
+                GameObject bullet = bulletPool.AskForObject(transform.position + bulletOffset);
+                if (bullet != null)
+                    bullet.SetActive(true);
+            }
+        }
+    }
 }
+
 

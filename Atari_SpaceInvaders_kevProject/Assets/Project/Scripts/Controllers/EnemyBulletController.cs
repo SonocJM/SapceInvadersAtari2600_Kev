@@ -2,7 +2,7 @@ using UnityEngine;
 
 public class EnemyBulletController : MonoBehaviour
 {
-    [SerializeField] private float speed = 5f;
+    [SerializeField] private float speed = 2f;
 
     void Update()
     {
@@ -11,9 +11,18 @@ public class EnemyBulletController : MonoBehaviour
 
     private void OnTriggerEnter2D(Collider2D other)
     {
-        if (other.CompareTag("Shield") || other.CompareTag("Wall"))
+        if (other.TryGetComponent<ShieldController>(out ShieldController shield))
         {
             gameObject.SetActive(false);
+            shield.gameObject.SetActive(false);
+            return;
+        }
+
+        if (other.TryGetComponent<WallController>(out WallController wall))
+        {
+            gameObject.SetActive(false);
+            return;
         }
     }
 }
+
